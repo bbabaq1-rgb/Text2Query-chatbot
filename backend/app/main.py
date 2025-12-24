@@ -2,8 +2,8 @@
 
 import logging
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from app.cors import setup_cors
 from app.db import test_db_connection
 from app.settings import get_settings
 
@@ -19,7 +19,16 @@ app = FastAPI(
 )
 
 # CORS 설정
-setup_cors(app)
+settings = get_settings()
+origins = settings.CORS_ORIGINS.split(",") if settings.CORS_ORIGINS else ["*"]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # 요청/응답 모델
 class ChatRequest(BaseModel):
