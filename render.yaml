@@ -12,6 +12,7 @@ services:
         sync: false
       - key: CORS_ORIGINS
         sync: false
+    runtimeVersion: "3.11"
 
   - type: web
     name: loan-sales-frontend
