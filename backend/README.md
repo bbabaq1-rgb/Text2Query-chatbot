@@ -1,12 +1,13 @@
 # Backend API (FastAPI)
 
-판매 데이터 조회 챗봇 백엔드 API
+Text-to-SQL 기반 판매 데이터 조회 챗봇 백엔드 API
 
 ## 시작하기
 
 ### 필수 환경
-- Python 3.8+
-- PostgreSQL (또는 Supabase)
+- Python 3.11+
+- PostgreSQL (Supabase)
+- OpenAI API Key 또는 Anthropic API Key
 
 ### 로컬 실행
 
@@ -20,16 +21,24 @@ pip install -r requirements.txt
 ```bash
 # .env 파일 생성
 cp .env.example .env
+```
 
-# .env 파일을 열어 다음 항목 설정:
-# - DATABASE_URL: PostgreSQL 연결 문자열
-# - LLM_API_KEY: (나중에) LLM API 키
-# - CORS_ORIGINS: 프론트엔드 도메인 (콤마 구분)
+`.env` 파일에 다음 변수 설정:
+```env
+# 필수
+DATABASE_URL=postgresql://user:password@host:5432/dbname
+LLM_API_KEY=sk-...  # OpenAI 또는 Anthropic API 키
+
+# 선택 (기본값 사용 가능)
+LLM_PROVIDER=openai  # openai 또는 anthropic
+LLM_MODEL=gpt-4o-mini  # OpenAI 모델명 (또는 claude-3-5-sonnet-20241022)
+CORS_ORIGINS=http://localhost:8080,http://127.0.0.1:8080
+PYTHON_VERSION=3.11.9
 ```
 
 #### 3. 앱 실행
 ```bash
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 서버는 `http://localhost:8000`에서 실행됩니다.
@@ -42,12 +51,18 @@ uvicorn app.main:app --reload
   # 응답: {"ok": true}
   ```
 
-- `POST /chat` - 챗 엔드포인트 (현재 Echo)
+- `POST /chat` - Text-to-SQL 챗봇
   ```bash
   curl -X POST http://localhost:8000/chat \
     -H "Content-Type: application/json" \
-    -d '{"question": "지난 월 판매액은?"}'
-  # 응답: {"answer": "Echo: 지난 월 판매액은?"}
+    -d '{"question": "서울본점의 1월 판매액은?"}'
+  # 응답: {
+  #   "answer": "결과: 1234567890",
+  #   "sql": "SELECT ...",
+  #   "columns": ["total"],
+  #   "rows": [{"total": 1234567890}],
+  #   "chart_data": null
+  # }
   ```
 
 ### 프로젝트 구조

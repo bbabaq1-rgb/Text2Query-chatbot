@@ -1,42 +1,130 @@
-"""ë°ì´í„°ë² ì´ìŠ¤ ì—°ê²° ê´€ë¦¬"""
+"""µ¥ÀÌÅÍº£ÀÌ½º ¿¬°á ¹× Äõ¸® ½ÇÇà"""
 
+import os
 import logging
-from sqlalchemy import create_engine, text
-from sqlalchemy.pool import NullPool
-from app.settings import get_settings
+from typing import List, Dict, Tuple, Any
+import psycopg2
+from psycopg2 import pool
+from psycopg2.extras import RealDictCursor
 
 logger = logging.getLogger(__name__)
 
-def get_db_engine():
-    """ë°ì´í„°ë² ì´ìŠ¤ ì—”ì§„ ìƒì„±"""
-    settings = get_settings()
+# Ä¿³Ø¼Ç Ç®
+_connection_pool = None
+
+
+def get_connection_pool():
+    \"\"\"µ¥ÀÌÅÍº£ÀÌ½º Ä¿³Ø¼Ç Ç® °¡Á®¿À±â\"\"\"
+    global _connection_pool
     
-    # SupabaseëŠ” postgresql:// ë˜ëŠ” postgresql+psycopg2:// ì§€ì›
-    database_url = settings.DATABASE_URL
-    if database_url.startswith("postgresql://"):
-        database_url = database_url.replace("postgresql://", "postgresql+psycopg2://", 1)
+    if _connection_pool is None:
+        database_url = os.getenv(\"DATABASE_URL\")
+        if not database_url:
+            raise ValueError(\"DATABASE_URL È¯°æ º¯¼ö°¡ ¼³Á¤µÇÁö ¾Ê¾Ò½À´Ï´Ù\")
+        
+        try:
+            _connection_pool = pool.SimpleConnectionPool(
+                minconn=1,
+                maxconn=10,
+                dsn=database_url
+            )
+            logger.info(\"µ¥ÀÌÅÍº£ÀÌ½º Ä¿³Ø¼Ç Ç® »ý¼º ¿Ï·á\")
+        except Exception as e:
+            logger.error(f\"Ä¿³Ø¼Ç Ç® »ý¼º ½ÇÆÐ: {e}\")
+            raise
     
-    engine = create_engine(
-        database_url,
-        poolclass=NullPool,  # Render ë¬´ë£Œ í”Œëžœìš© (connection pool ì—†ìŒ)
-        echo=False,
-    )
-    return engine
+    return _connection_pool
+
 
 def test_db_connection() -> bool:
-    """ë°ì´í„°ë² ì´ìŠ¤ ì—°ê²° í…ŒìŠ¤íŠ¸"""
+    \"\"\"µ¥ÀÌÅÍº£ÀÌ½º ¿¬°á Å×½ºÆ®\"\"\"
     try:
-        engine = get_db_engine()
-        with engine.connect() as conn:
-            result = conn.execute(text("SELECT 1"))
-            logger.info("âœ“ Database connection successful")
-            return True
+        pool_instance = get_connection_pool()
+        conn = pool_instance.getconn()
+        
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute(\"SELECT 1;\")
+                result = cursor.fetchone()
+                logger.info(f\" DB ¿¬°á ¼º°ø: {result}\")
+                return True
+        finally:
+            pool_instance.putconn(conn)
+            
     except Exception as e:
-        logger.error(f"âœ— Database connection failed: {e}")
+        logger.error(f\" DB ¿¬°á ½ÇÆÐ: {e}\")
         return False
 
-def get_db_connection():
-    """ë°ì´í„°ë² ì´ìŠ¤ ì—°ê²° ë°˜í™˜ (ì»¨í…ìŠ¤íŠ¸ ë§¤ë‹ˆì €)"""
-    engine = get_db_engine()
-    with engine.connect() as conn:
-        yield conn
+
+def run_query(sql: str, timeout: int = 10) -> Tuple[List[str], List[Dict[str, Any]]]:
+    \"\"\"
+    SQL Äõ¸® ½ÇÇà ¹× °á°ú ¹ÝÈ¯
+    
+    Args:
+        sql: ½ÇÇàÇÒ SQL Äõ¸®
+        timeout: Äõ¸® Å¸ÀÓ¾Æ¿ô (ÃÊ)
+        
+    Returns:
+        (ÄÃ·³¸í ¸®½ºÆ®, Çà µ¥ÀÌÅÍ ¸®½ºÆ®) Æ©ÇÃ
+        - columns: ['col1', 'col2', ...]
+        - rows: [{'col1': val1, 'col2': val2}, ...]
+        
+    Raises:
+        Exception: Äõ¸® ½ÇÇà Áß ¿À·ù ¹ß»ý ½Ã
+    \"\"\"
+    pool_instance = get_connection_pool()
+    conn = pool_instance.getconn()
+    
+    try:
+        # Å¸ÀÓ¾Æ¿ô ¼³Á¤
+        conn.set_session(readonly=True)
+        
+        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+            # Statement timeout ¼³Á¤
+            cursor.execute(f\"SET statement_timeout TO {timeout * 1000};\")
+            
+            # Äõ¸® ½ÇÇà
+            logger.info(f\"SQL ½ÇÇà: {sql[:200]}...\")
+            cursor.execute(sql)
+            
+            # °á°ú °¡Á®¿À±â
+            rows = cursor.fetchall()
+            
+            # ÃÖ´ë 1000°³ Á¦ÇÑ
+            if len(rows) > 1000:
+                logger.warning(f\"°á°ú {len(rows)}°³ Áß 1000°³¸¸ ¹ÝÈ¯\")
+                rows = rows[:1000]
+            
+            # ÄÃ·³¸í ÃßÃâ
+            columns = [desc.name for desc in cursor.description] if cursor.description else []
+            
+            # RealDict¸¦ ÀÏ¹Ý dict·Î º¯È¯
+            rows_dict = [dict(row) for row in rows]
+            
+            logger.info(f\"Äõ¸® ¼º°ø: {len(rows_dict)}°³ Çà, {len(columns)}°³ ÄÃ·³\")
+            return columns, rows_dict
+            
+    except psycopg2.errors.QueryCanceled:
+        logger.error(f\"Äõ¸® Å¸ÀÓ¾Æ¿ô ({timeout}ÃÊ ÃÊ°ú)\")
+        raise TimeoutError(f\"Äõ¸® ½ÇÇà ½Ã°£ÀÌ {timeout}ÃÊ¸¦ ÃÊ°úÇß½À´Ï´Ù\")
+        
+    except psycopg2.Error as e:
+        logger.error(f\"SQL ½ÇÇà ¿À·ù: {e}\")
+        raise
+        
+    except Exception as e:
+        logger.error(f\"¿¹»óÄ¡ ¸øÇÑ ¿À·ù: {e}\")
+        raise
+        
+    finally:
+        conn.rollback()  # ÀÐ±â Àü¿ëÀÌ¹Ç·Î ·Ñ¹é
+        pool_instance.putconn(conn)
+
+
+def close_pool():
+    \"\"\"Ä¿³Ø¼Ç Ç® Á¾·á\"\"\"
+    global _connection_pool
+    if _connection_pool:
+        _connection_pool.closeall()
+        _connection_pool = None
+        logger.info(\"Ä¿³Ø¼Ç Ç® Á¾·áµÊ\")
