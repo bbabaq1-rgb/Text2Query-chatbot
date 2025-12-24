@@ -2,7 +2,7 @@
  * Frontend App
  */
 
-const BACKEND_URL = "http://127.0.0.1:8000";
+const BACKEND_URL = "https://loan-sales-backend.onrender.com";
 
 const chatForm = document.getElementById("chatForm");
 const questionInput = document.getElementById("questionInput");
@@ -17,7 +17,7 @@ chatForm.addEventListener("submit", async (e) => {
     addMessage(question, "user");
     questionInput.value = "";
 
-    const loadingMessage = addMessage("생각 중...", "bot");
+    const loadingMessage = addMessage("?�각 �?..", "bot");
 
     try {
         const response = await fetch(`${BACKEND_URL}/chat`, {
@@ -39,7 +39,7 @@ chatForm.addEventListener("submit", async (e) => {
     } catch (error) {
         loadingMessage.remove();
         addMessage(
-            `❌ 오류: ${error.message}\n\n` +
+            `???�류: ${error.message}\n\n` +
             `BACKEND_URL: ${BACKEND_URL}`,
             "bot"
         );
@@ -66,9 +66,9 @@ window.addEventListener("load", async () => {
     try {
         const response = await fetch(`${BACKEND_URL}/health`);
         if (response.ok) {
-            console.log("✅ 백엔드 연결 성공");
+            console.log("??백엔???�결 ?�공");
         }
     } catch (error) {
-        console.warn("⚠️ 백엔드 연결 실패:", error.message);
+        console.warn("?�️ 백엔???�결 ?�패:", error.message);
     }
 });
