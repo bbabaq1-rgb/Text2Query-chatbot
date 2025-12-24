@@ -1,7 +1,8 @@
-"""µ¥ÀÌÅÍº£ÀÌ½º ¿¬°á ¹× Äõ¸® ½ÇÇà"""
+"""ë°ì´í„°ë² ì´ìŠ¤ ì—°ê²° ë° ì¿¼ë¦¬ ì‹¤í–‰"""
 
 import os
 import logging
+import socket
 from typing import List, Dict, Tuple, Any
 import psycopg2
 from psycopg2 import pool
@@ -9,122 +10,140 @@ from psycopg2.extras import RealDictCursor
 
 logger = logging.getLogger(__name__)
 
-# Ä¿³Ø¼Ç Ç®
+# IPv6 ë¬¸ì œ í•´ê²°ì„ ìœ„í•œ ì„¤ì •
+socket.setdefaulttimeout(10)
+
+# ì»¤ë„¥ì…˜ í’€
 _connection_pool = None
 
 
 def get_connection_pool():
-    \"\"\"µ¥ÀÌÅÍº£ÀÌ½º Ä¿³Ø¼Ç Ç® °¡Á®¿À±â\"\"\"
+    """ë°ì´í„°ë² ì´ìŠ¤ ì»¤ë„¥ì…˜ í’€ ê°€ì ¸ì˜¤ê¸°"""
     global _connection_pool
     
     if _connection_pool is None:
-        database_url = os.getenv(\"DATABASE_URL\")
+        database_url = os.getenv("DATABASE_URL")
         if not database_url:
-            raise ValueError(\"DATABASE_URL È¯°æ º¯¼ö°¡ ¼³Á¤µÇÁö ¾Ê¾Ò½À´Ï´Ù\")
+            logger.warning("DATABASE_URLì´ ì„¤ì •ë˜ì§€ ì•ŠìŒ - DB ì—°ê²° ìŠ¤í‚µ")
+            return None
         
         try:
+            # Windows IPv6 DNS ë¬¸ì œ í•´ê²°ì„ ìœ„í•´ connect_timeout ì¶”ê°€
+            if "?" in database_url:
+                database_url += "&connect_timeout=10"
+            else:
+                database_url += "?connect_timeout=10"
+            
             _connection_pool = pool.SimpleConnectionPool(
                 minconn=1,
                 maxconn=10,
                 dsn=database_url
             )
-            logger.info(\"µ¥ÀÌÅÍº£ÀÌ½º Ä¿³Ø¼Ç Ç® »ı¼º ¿Ï·á\")
+            logger.info("ë°ì´í„°ë² ì´ìŠ¤ ì»¤ë„¥ì…˜ í’€ ìƒì„± ì™„ë£Œ")
         except Exception as e:
-            logger.error(f\"Ä¿³Ø¼Ç Ç® »ı¼º ½ÇÆĞ: {e}\")
-            raise
+            logger.warning(f"âš ï¸ DB ì—°ê²° ì‹¤íŒ¨ (SQL ìƒì„±ë§Œ ì‚¬ìš© ê°€ëŠ¥)")
+            return None
     
     return _connection_pool
 
 
 def test_db_connection() -> bool:
-    \"\"\"µ¥ÀÌÅÍº£ÀÌ½º ¿¬°á Å×½ºÆ®\"\"\"
+    """ë°ì´í„°ë² ì´ìŠ¤ ì—°ê²° í…ŒìŠ¤íŠ¸"""
     try:
         pool_instance = get_connection_pool()
+        if pool_instance is None:
+            logger.warning("âš ï¸ DB ì—°ê²° í’€ì´ ì—†ìŒ - ì—°ê²° ìŠ¤í‚µ")
+            return False
+        
         conn = pool_instance.getconn()
         
         try:
             with conn.cursor() as cursor:
-                cursor.execute(\"SELECT 1;\")
+                cursor.execute("SELECT 1;")
                 result = cursor.fetchone()
-                logger.info(f\" DB ¿¬°á ¼º°ø: {result}\")
+                logger.info(f"âœ… DB ì—°ê²° ì„±ê³µ: {result}")
                 return True
         finally:
             pool_instance.putconn(conn)
             
     except Exception as e:
-        logger.error(f\" DB ¿¬°á ½ÇÆĞ: {e}\")
+        logger.warning(f"âš ï¸ DB ì—°ê²° ì‹¤íŒ¨")
         return False
 
 
 def run_query(sql: str, timeout: int = 10) -> Tuple[List[str], List[Dict[str, Any]]]:
-    \"\"\"
-    SQL Äõ¸® ½ÇÇà ¹× °á°ú ¹İÈ¯
+    """
+    SQL ì¿¼ë¦¬ ì‹¤í–‰ ë° ê²°ê³¼ ë°˜í™˜
     
     Args:
-        sql: ½ÇÇàÇÒ SQL Äõ¸®
-        timeout: Äõ¸® Å¸ÀÓ¾Æ¿ô (ÃÊ)
+        sql: ì‹¤í–‰í•  SQL ì¿¼ë¦¬
+        timeout: ì¿¼ë¦¬ íƒ€ì„ì•„ì›ƒ (ì´ˆ)
         
     Returns:
-        (ÄÃ·³¸í ¸®½ºÆ®, Çà µ¥ÀÌÅÍ ¸®½ºÆ®) Æ©ÇÃ
+        (ì»¬ëŸ¼ëª… ë¦¬ìŠ¤íŠ¸, í–‰ ë°ì´í„° ë¦¬ìŠ¤íŠ¸) íŠœí”Œ
         - columns: ['col1', 'col2', ...]
         - rows: [{'col1': val1, 'col2': val2}, ...]
         
     Raises:
-        Exception: Äõ¸® ½ÇÇà Áß ¿À·ù ¹ß»ı ½Ã
-    \"\"\"
+        Exception: ì¿¼ë¦¬ ì‹¤í–‰ ì¤‘ ì˜¤ë¥˜ ë°œìƒ ì‹œ
+    """
     pool_instance = get_connection_pool()
+    
+    if pool_instance is None:
+        raise Exception("ë°ì´í„°ë² ì´ìŠ¤ ì—°ê²° í’€ì´ ì´ˆê¸°í™”ë˜ì§€ ì•Šì•˜ìŠµë‹ˆë‹¤")
+    
     conn = pool_instance.getconn()
     
     try:
-        # Å¸ÀÓ¾Æ¿ô ¼³Á¤
+        # íƒ€ì„ì•„ì›ƒ ì„¤ì •
         conn.set_session(readonly=True)
         
         with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-            # Statement timeout ¼³Á¤
-            cursor.execute(f\"SET statement_timeout TO {timeout * 1000};\")
+            # Statement timeout ì„¤ì •
+            cursor.execute(f"SET statement_timeout TO {timeout * 1000};")
             
-            # Äõ¸® ½ÇÇà
-            logger.info(f\"SQL ½ÇÇà: {sql[:200]}...\")
+            # ì¿¼ë¦¬ ì‹¤í–‰
+            logger.info(f"SQL ì‹¤í–‰: {sql[:200]}...")
             cursor.execute(sql)
             
-            # °á°ú °¡Á®¿À±â
+            # ê²°ê³¼ ê°€ì ¸ì˜¤ê¸°
             rows = cursor.fetchall()
             
-            # ÃÖ´ë 1000°³ Á¦ÇÑ
+            # ìµœëŒ€ 1000í–‰ ì œí•œ
             if len(rows) > 1000:
-                logger.warning(f\"°á°ú {len(rows)}°³ Áß 1000°³¸¸ ¹İÈ¯\")
+                logger.warning(f"ê²°ê³¼ {len(rows)}í–‰ ì¤‘ 1000í–‰ë§Œ ë°˜í™˜")
                 rows = rows[:1000]
             
-            # ÄÃ·³¸í ÃßÃâ
+            # ì»¬ëŸ¼ëª… ì¶”ì¶œ
             columns = [desc.name for desc in cursor.description] if cursor.description else []
             
-            # RealDict¸¦ ÀÏ¹İ dict·Î º¯È¯
+            # RealDictë¥¼ ì¼ë°˜ dictë¡œ ë³€í™˜
             rows_dict = [dict(row) for row in rows]
             
-            logger.info(f\"Äõ¸® ¼º°ø: {len(rows_dict)}°³ Çà, {len(columns)}°³ ÄÃ·³\")
+            logger.info(f"ì¿¼ë¦¬ ì™„ë£Œ: {len(rows_dict)}ê°œ í–‰, {len(columns)}ê°œ ì»¬ëŸ¼")
             return columns, rows_dict
             
     except psycopg2.errors.QueryCanceled:
-        logger.error(f\"Äõ¸® Å¸ÀÓ¾Æ¿ô ({timeout}ÃÊ ÃÊ°ú)\")
-        raise TimeoutError(f\"Äõ¸® ½ÇÇà ½Ã°£ÀÌ {timeout}ÃÊ¸¦ ÃÊ°úÇß½À´Ï´Ù\")
+        logger.error(f"ì¿¼ë¦¬ íƒ€ì„ì•„ì›ƒ ({timeout}ì´ˆ ì´ˆê³¼)")
+        raise TimeoutError(f"ì¿¼ë¦¬ ì‹¤í–‰ ì‹œê°„ì´ {timeout}ì´ˆë¥¼ ì´ˆê³¼í–ˆìŠµë‹ˆë‹¤")
         
     except psycopg2.Error as e:
-        logger.error(f\"SQL ½ÇÇà ¿À·ù: {e}\")
+        logger.error(f"SQL ì‹¤í–‰ ì˜¤ë¥˜: {str(e)[:200]}")
         raise
         
     except Exception as e:
-        logger.error(f\"¿¹»óÄ¡ ¸øÇÑ ¿À·ù: {e}\")
+        logger.error(f"ì˜ˆìƒì¹˜ ëª»í•œ ì˜¤ë¥˜: {str(e)[:200]}")
         raise
         
     finally:
-        conn.rollback()  # ÀĞ±â Àü¿ëÀÌ¹Ç·Î ·Ñ¹é
+        conn.rollback()  # ì½ê¸° ì „ìš©ì´ë¯€ë¡œ ë¡¤ë°±
         pool_instance.putconn(conn)
 
 
 def close_pool():
-    \"\"\"Ä¿³Ø¼Ç Ç® Á¾·á\"\"\"
+    """ì»¤ë„¥ì…˜ í’€ ì¢…ë£Œ"""
     global _connection_pool
     if _connection_pool:
         _connection_pool.closeall()
         _connection_pool = None
-        logger.info(\"Ä¿³Ø¼Ç Ç® Á¾·áµÊ\")
+        logger.info("ì»¤ë„¥ì…˜ í’€ ì¢…ë£Œë¨")

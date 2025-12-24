@@ -24,7 +24,13 @@ except ImportError as e:
     def validate_and_rewrite(sql): return sql
 
 # 로깅 설정
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler()
+    ]
+)
 logger = logging.getLogger(__name__)
 
 # FastAPI 애플리케이션
@@ -36,7 +42,7 @@ app = FastAPI(
 
 # CORS 설정
 settings = get_settings()
-origins = settings.CORS_ORIGINS.split(",") if settings.CORS_ORIGINS else ["*"]
+origins = settings.CORS_ORIGINS if isinstance(settings.CORS_ORIGINS, list) else ["*"]
 
 app.add_middleware(
     CORSMiddleware,
@@ -67,7 +73,14 @@ async def startup_event():
     logger.info(f"CORS Origins: {settings.CORS_ORIGINS}")
 
     # DB 연결 테스트(무시해도 됨 - 오류가 있어도 계속 시작됨)
-    test_db_connection()
+    try:
+        db_ok = test_db_connection()
+        if db_ok:
+            logger.info("✅ 데이터베이스 연결 성공")
+        else:
+            logger.warning("⚠️ 데이터베이스 연결 실패 - LLM SQL 생성만 사용 가능")
+    except Exception as e:
+        logger.warning(f"⚠️ 데이터베이스 연결 실패 - LLM SQL 생성만 사용 가능: {str(e)[:100]}")
 
 @app.get("/health")
 async def health_check():
@@ -128,15 +141,21 @@ async def chat(request: ChatRequest):
             columns, rows = run_query(safe_sql)
             logger.info(f"결과: {len(rows)}개 행")
         except TimeoutError as e:
-            raise HTTPException(
-                status_code=504,
-                detail="쿼리 실행 시간이 초과되었습니다"
+            # DB 타임아웃 - SQL은 보여주되 에러 메시지 표시
+            return ChatResponse(
+                answer="⚠️ 쿼리 실행 시간이 초과되었습니다. 생성된 SQL을 확인해주세요.",
+                sql=safe_sql,
+                columns=[],
+                rows=[]
             )
         except Exception as e:
             logger.error(f"쿼리 실행 오류: {e}")
-            raise HTTPException(
-                status_code=500,
-                detail=f"쿼리 실행 중 오류가 발생했습니다: {str(e)}"
+            # DB 연결 실패 - SQL은 보여주되 에러 메시지 표시
+            return ChatResponse(
+                answer=f"⚠️ 데이터베이스 연결 오류가 발생했습니다.\n생성된 SQL은 확인할 수 있습니다.\n\n오류: {str(e)[:100]}",
+                sql=safe_sql,
+                columns=[],
+                rows=[]
             )
         
         # 5. 답변 생성
