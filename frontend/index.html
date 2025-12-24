@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>영업 데이터 조회 챗봇</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <div class="chat-box">
+            <div class="chat-header">
+                <h1>💼 영업 데이터 조회 챗봇</h1>
+                <p class="subtitle">자연어로 판매 데이터를 조회하세요</p>
+            </div>
+
+            <div class="chat-messages" id="chatMessages">
+                <div class="message bot-message">
+                    <p>안녕하세요! 영업 데이터를 조회하고 싶으신 질문을 해주세요.</p>
+                </div>
+            </div>
+
+            <div class="chat-input-area">
+                <form id="chatForm">
+                    <input
+                        type="text"
+                        id="questionInput"
+                        placeholder="예: 지난달 판매액은?"
+                        autocomplete="off"
+                    />
+                    <button type="submit">전송</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

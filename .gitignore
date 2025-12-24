@@ -1,0 +1,58 @@
+# Git 무시 파일
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# 가상 환경
+venv/
+ENV/
+env/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# 환경 변수 (실제 값)
+.env
+.env.local
+.env.*.local
+
+# 로그
+*.log
+
+# 의존성
+node_modules/
+package-lock.json
+yarn.lock
+
+# 빌드 출력
+dist/
+build/
+
+# Node 패키지 (필요시)
+npm-debug.log
+yarn-error.log
