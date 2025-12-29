@@ -157,11 +157,14 @@ function addBotMessage(data) {
                 const value = row[col];
                 
                 let displayValue = value;
-                if (typeof value === 'number') {
-                    // 소숫점 첫째 자리에서 반올림 (정수로 만듦) 및 3자리마다 콤마
-                    displayValue = Math.round(value).toLocaleString();
-                } else if (value === null || value === undefined) {
+                if (value === null || value === undefined) {
                     displayValue = "";
+                } else if (typeof value === 'number') {
+                    // 숫자 타입: 소숫점 첫째 자리에서 반올림 및 3자리마다 콤마
+                    displayValue = Math.round(value).toLocaleString();
+                } else if (typeof value === 'string' && !isNaN(value) && !isNaN(parseFloat(value))) {
+                    // 숫자 형태의 문자열: 숫자로 변환 후 포맷팅
+                    displayValue = Math.round(parseFloat(value)).toLocaleString();
                 }
 
                 td.textContent = displayValue;
