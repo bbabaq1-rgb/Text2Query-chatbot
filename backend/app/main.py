@@ -14,6 +14,7 @@ try:
     from app.vanna_client import generate_sql_with_vanna
     from app.sql_prompt import build_prompt
     from app.guardrails import validate_and_rewrite
+    from app.chart_utils import generate_chart_data
     LLM_ENABLED = True
     VANNA_ENABLED = True
 except ImportError as e:
@@ -26,6 +27,7 @@ except ImportError as e:
     def generate_sql_with_vanna(question): return None
     def build_prompt(q): return q
     def validate_and_rewrite(sql): return sql
+    def generate_chart_data(cols, rows): return None
 
 # 로깅 설정
 logging.basicConfig(
@@ -194,13 +196,22 @@ async def chat(request: ChatRequest):
         else:
             answer = f"총 {row_count}개의 데이터를 조회했습니다.\n컬럼: {', '.join(columns)}"
         
-        # 6. 응답 반환
+        # 6. 차트 데이터 생성
+        chart_data = None
+        try:
+            chart_data = generate_chart_data(columns, rows)
+            if chart_data:
+                logger.info(f"차트 데이터 생성 완료: {chart_data['type']}")
+        except Exception as e:
+            logger.warning(f"차트 데이터 생성 실패 (무시): {e}")
+        
+        # 7. 응답 반환
         return ChatResponse(
             answer=answer,
             sql=safe_sql,
             columns=columns,
             rows=rows,
-            chart_data=None  # TODO: 차트 데이터 생성 로직 추가
+            chart_data=chart_data
         )
         
     except HTTPException:
