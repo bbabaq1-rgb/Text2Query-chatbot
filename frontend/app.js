@@ -17,7 +17,7 @@ chatForm.addEventListener("submit", async (e) => {
     addMessage(question, "user");
     questionInput.value = "";
 
-    const loadingMessage = addMessage("생각 중...", "bot");
+    const loadingMessage = addLoadingMessage();
 
     try {
         const response = await fetch(`${BACKEND_URL}/chat`, {
@@ -64,23 +64,40 @@ function addMessage(text, sender) {
     return messageDiv;
 }
 
+function addLoadingMessage() {
+    const messageDiv = document.createElement("div");
+    messageDiv.className = "message bot-message";
+
+    const p = document.createElement("p");
+    p.innerHTML = '생각 중<span class="loading-dots"></span>';
+    
+    messageDiv.appendChild(p);
+    chatMessages.appendChild(messageDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+
+    return messageDiv;
+}
+
 function addBotMessage(data) {
     const messageDiv = document.createElement("div");
     messageDiv.className = "message bot-message";
 
-    // 답변 텍스트
-    const answerP = document.createElement("p");
-    answerP.textContent = data.answer;
-    messageDiv.appendChild(answerP);
+    // 메시지 내용을 담을 컨테이너 (세로 정렬을 위해)
+    const contentWrapper = document.createElement("div");
+    contentWrapper.style.display = "flex";
+    contentWrapper.style.flexDirection = "column";
+    contentWrapper.style.maxWidth = "80%"; // 전체 너비 제한
+    contentWrapper.style.gap = "10px"; // 요소 간 간격
 
-    // SQL이 있으면 표시 (접어서)
+    // SQL이 있으면 먼저 표시 (상단)
     if (data.sql) {
         const sqlDetails = document.createElement("details");
         const sqlSummary = document.createElement("summary");
         sqlSummary.textContent = "생성된 SQL 쿼리 보기";
         sqlSummary.style.cursor = "pointer";
         sqlSummary.style.color = "#007bff";
-        sqlSummary.style.marginTop = "10px";
+        sqlSummary.style.marginBottom = "5px";
+        sqlSummary.style.fontWeight = "500";
         
         const sqlPre = document.createElement("pre");
         sqlPre.style.background = "#f5f5f5";
@@ -88,17 +105,24 @@ function addBotMessage(data) {
         sqlPre.style.borderRadius = "5px";
         sqlPre.style.overflowX = "auto";
         sqlPre.style.fontSize = "12px";
+        sqlPre.style.marginTop = "5px";
         sqlPre.textContent = data.sql;
         
         sqlDetails.appendChild(sqlSummary);
         sqlDetails.appendChild(sqlPre);
-        messageDiv.appendChild(sqlDetails);
+        contentWrapper.appendChild(sqlDetails);
     }
+
+    // 답변 텍스트 (하단)
+    const answerP = document.createElement("p");
+    answerP.textContent = data.answer;
+    answerP.style.maxWidth = "100%"; // wrapper가 이미 너비를 제한하므로 100%로 변경
+    contentWrapper.appendChild(answerP);
 
     // 테이블 데이터가 있으면 표시
     if (data.columns && data.columns.length > 0 && data.rows && data.rows.length > 0) {
         const tableContainer = document.createElement("div");
-        tableContainer.style.marginTop = "15px";
+        tableContainer.style.marginTop = "5px";
         tableContainer.style.overflowX = "auto";
         
         const table = document.createElement("table");
@@ -131,7 +155,16 @@ function addBotMessage(data) {
             data.columns.forEach(col => {
                 const td = document.createElement("td");
                 const value = row[col];
-                td.textContent = value !== null && value !== undefined ? value : "";
+                
+                let displayValue = value;
+                if (typeof value === 'number') {
+                    // 소숫점 첫째 자리에서 반올림 (정수로 만듦) 및 3자리마다 콤마
+                    displayValue = Math.round(value).toLocaleString();
+                } else if (value === null || value === undefined) {
+                    displayValue = "";
+                }
+
+                td.textContent = displayValue;
                 td.style.border = "1px solid #ddd";
                 td.style.padding = "8px";
                 tr.appendChild(td);
@@ -141,9 +174,10 @@ function addBotMessage(data) {
         table.appendChild(tbody);
 
         tableContainer.appendChild(table);
-        messageDiv.appendChild(tableContainer);
+        contentWrapper.appendChild(tableContainer);
     }
 
+    messageDiv.appendChild(contentWrapper);
     chatMessages.appendChild(messageDiv);
     chatMessages.scrollTop = chatMessages.scrollHeight;
 

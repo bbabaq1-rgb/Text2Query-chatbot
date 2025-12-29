@@ -11,15 +11,19 @@ from app.settings import get_settings
 try:
     from app.db import test_db_connection, run_query
     from app.llm_client import generate_sql
+    from app.vanna_client import generate_sql_with_vanna
     from app.sql_prompt import build_prompt
     from app.guardrails import validate_and_rewrite
     LLM_ENABLED = True
+    VANNA_ENABLED = True
 except ImportError as e:
     logging.warning(f"일부 모듈 로드 실패: {e}")
     LLM_ENABLED = False
+    VANNA_ENABLED = False
     def test_db_connection(): return False
     def run_query(sql): return [], []
     def generate_sql(prompt): return "SELECT 1;"
+    def generate_sql_with_vanna(question): return None
     def build_prompt(q): return q
     def validate_and_rewrite(sql): return sql
 
@@ -117,12 +121,31 @@ async def chat(request: ChatRequest):
     try:
         # 1. SQL 프롬프트 생성
         logger.info(f"사용자 질문: {question}")
-        prompt = build_prompt(question)
         
-        # 2. LLM으로 SQL 생성
-        logger.info("LLM 호출 중...")
-        raw_sql = generate_sql(prompt)
-        logger.info(f"생성된 SQL: {raw_sql}")
+        # 2. LLM으로 SQL 생성 (Vanna 우선 시도)
+        logger.info("SQL 생성 중...")
+        raw_sql = None
+        
+        # Vanna 사용 시도
+        if VANNA_ENABLED:
+            try:
+                raw_sql = generate_sql_with_vanna(question)
+                if raw_sql:
+                    logger.info(f"Vanna로 생성된 SQL: {raw_sql[:100]}...")
+            except Exception as e:
+                logger.warning(f"Vanna 실패, 기본 LLM으로 대체: {e}")
+        
+        # Vanna 실패 시 기본 LLM 사용
+        if not raw_sql:
+            prompt = build_prompt(question)
+            raw_sql = generate_sql(prompt)
+            logger.info(f"기본 LLM으로 생성된 SQL: {raw_sql[:100]}...")
+        
+        if not raw_sql:
+            raise HTTPException(
+                status_code=500,
+                detail="SQL 생성에 실패했습니다"
+            )
         
         # 3. Guardrails 검증
         try:

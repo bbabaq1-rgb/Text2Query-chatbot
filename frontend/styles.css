@@ -169,3 +169,22 @@ body {
         max-width: 85%;
     }
 }
+
+/* 로딩 애니메이션 */
+.loading-dots::after {
+    content: '...';
+    display: inline-block;
+    animation: dots 1.5s steps(4, end) infinite;
+}
+
+@keyframes dots {
+    0%, 20% {
+        content: '.';
+    }
+    40% {
+        content: '..';
+    }
+    60%, 100% {
+        content: '...';
+    }
+}
