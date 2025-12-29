@@ -180,11 +180,159 @@ function addBotMessage(data) {
         contentWrapper.appendChild(tableContainer);
     }
 
+    // 차트 데이터가 있으면 표시
+    if (data.chart_data) {
+        const chartContainer = document.createElement("div");
+        chartContainer.style.marginTop = "15px";
+        chartContainer.style.padding = "15px";
+        chartContainer.style.background = "#fff";
+        chartContainer.style.borderRadius = "8px";
+        chartContainer.style.boxShadow = "0 2px 8px rgba(0,0,0,0.1)";
+        chartContainer.style.width = "100%";
+        chartContainer.style.height = "500px";
+        
+        // 차트 캔버스
+        const canvas = document.createElement("canvas");
+        canvas.id = `chart-${Date.now()}`;
+        canvas.style.width = "100%";
+        canvas.style.height = "450px";
+        chartContainer.appendChild(canvas);
+        
+        // 다운로드 버튼
+        const downloadBtn = document.createElement("button");
+        downloadBtn.textContent = "📊 차트 다운로드";
+        downloadBtn.style.marginTop = "10px";
+        downloadBtn.style.padding = "8px 16px";
+        downloadBtn.style.background = "#667eea";
+        downloadBtn.style.color = "white";
+        downloadBtn.style.border = "none";
+        downloadBtn.style.borderRadius = "5px";
+        downloadBtn.style.cursor = "pointer";
+        downloadBtn.style.fontSize = "13px";
+        downloadBtn.onclick = () => {
+            const link = document.createElement('a');
+            link.download = 'chart.png';
+            link.href = canvas.toDataURL();
+            link.click();
+        };
+        chartContainer.appendChild(downloadBtn);
+        
+        contentWrapper.appendChild(chartContainer);
+        
+        // 차트 렌더링 (DOM에 추가된 후)
+        setTimeout(() => {
+            renderChart(canvas, data.chart_data);
+        }, 100);
+    }
+
     messageDiv.appendChild(contentWrapper);
     chatMessages.appendChild(messageDiv);
     chatMessages.scrollTop = chatMessages.scrollHeight;
 
     return messageDiv;
+}
+
+function renderChart(canvas, chartData) {
+    try {
+        const ctx = canvas.getContext('2d');
+        
+        // 차트 옵션 (고급 인터랙티브 기능)
+        const options = {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top',
+                    onClick: function(e, legendItem, legend) {
+                        // 범례 클릭으로 데이터셋 토글
+                        const index = legendItem.datasetIndex;
+                        const chart = legend.chart;
+                        const meta = chart.getDatasetMeta(index);
+                        meta.hidden = meta.hidden === null ? !chart.data.datasets[index].hidden : null;
+                        chart.update();
+                    }
+                },
+                tooltip: {
+                    enabled: true,
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            if (context.parsed.y !== null) {
+                                label += Math.round(context.parsed.y).toLocaleString();
+                            }
+                            return label;
+                        }
+                    }
+                }
+            },
+            scales: chartData.type !== 'pie' ? {
+                x: {
+                    ticks: {
+                        font: {
+                            size: 10
+                        },
+                        maxRotation: 45,
+                        minRotation: 45,
+                        autoSkip: true,
+                        maxTicksLimit: 10
+                    }
+                },
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        font: {
+                            size: 11
+                        },
+                        callback: function(value) {
+                            return value.toLocaleString();
+                        }
+                    }
+                }
+            } : {},
+            interaction: {
+                mode: 'index',
+                intersect: false,
+            },
+            animation: {
+                duration: 1000,
+                easing: 'easeInOutQuart'
+            }
+        };
+        
+        // 줌/팬 플러그인 (line/bar 차트만)
+        if (chartData.type === 'line' || chartData.type === 'bar') {
+            options.plugins.zoom = {
+                zoom: {
+                    wheel: {
+                        enabled: true,
+                    },
+                    pinch: {
+                        enabled: true
+                    },
+                    mode: 'xy',
+                },
+                pan: {
+                    enabled: true,
+                    mode: 'xy'
+                }
+            };
+        }
+        
+        new Chart(ctx, {
+            type: chartData.type,
+            data: {
+                labels: chartData.labels,
+                datasets: chartData.datasets
+            },
+            options: options
+        });
+    } catch (error) {
+        console.error('차트 렌더링 오류:', error);
+    }
 }
 
 window.addEventListener("load", async () => {

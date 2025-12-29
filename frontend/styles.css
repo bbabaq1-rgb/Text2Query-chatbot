@@ -188,3 +188,17 @@ body {
         content: '...';
     }
 }
+
+/* 차트 컨테이너 스타일 */
+canvas {
+    max-width: 100%;
+    height: auto !important;
+    min-height: 400px;
+}
+
+/* 차트 다운로드 버튼 호버 효과 */
+button:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+    transition: all 0.2s ease;
+}
