@@ -189,13 +189,13 @@ function addBotMessage(data) {
         chartContainer.style.borderRadius = "8px";
         chartContainer.style.boxShadow = "0 2px 8px rgba(0,0,0,0.1)";
         chartContainer.style.width = "100%";
-        chartContainer.style.height = "500px";
+        chartContainer.style.minHeight = "500px";
         
         // 차트 캔버스
         const canvas = document.createElement("canvas");
         canvas.id = `chart-${Date.now()}`;
         canvas.style.width = "100%";
-        canvas.style.height = "450px";
+        canvas.style.height = "480px";
         chartContainer.appendChild(canvas);
         
         // 다운로드 버튼
@@ -273,22 +273,56 @@ function renderChart(canvas, chartData) {
                 x: {
                     ticks: {
                         font: {
-                            size: 10
+                            size: 9
                         },
                         maxRotation: 45,
                         minRotation: 45,
                         autoSkip: true,
-                        maxTicksLimit: 10
+                        maxTicksLimit: 12
                     }
                 },
                 y: {
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
                     beginAtZero: true,
                     ticks: {
                         font: {
-                            size: 11
+                            size: 10
                         },
                         callback: function(value) {
                             return value.toLocaleString();
+                        }
+                    },
+                    title: {
+                        display: chartData.datasets.length > 1,
+                        text: chartData.datasets[0]?.label || '',
+                        font: {
+                            size: 11
+                        }
+                    }
+                },
+                y1: {
+                    type: 'linear',
+                    display: chartData.datasets.length > 1,
+                    position: 'right',
+                    beginAtZero: true,
+                    grid: {
+                        drawOnChartArea: false,
+                    },
+                    ticks: {
+                        font: {
+                            size: 10
+                        },
+                        callback: function(value) {
+                            return value.toLocaleString();
+                        }
+                    },
+                    title: {
+                        display: true,
+                        text: chartData.datasets[1]?.label || '',
+                        font: {
+                            size: 11
                         }
                     }
                 }

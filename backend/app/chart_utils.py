@@ -103,6 +103,7 @@ def generate_chart_data(columns: List[str], rows: List[Dict[str, Any]]) -> Optio
                 c.replace('rgb', 'rgba').replace(')', ', 0.6)') for c in colors[:len(data)]
             ],
             'tension': 0.3 if chart_type == 'line' else 0,
+            'yAxisID': 'y' if idx == 0 else 'y1',  # 첫 번째는 y, 나머지는 y1
         }
         
         datasets.append(dataset)
